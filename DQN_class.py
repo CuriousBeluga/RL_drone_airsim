@@ -1,11 +1,12 @@
+import cv2
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import numpy as np
-from collections import deque
+from collections import namedtuple, deque
 
 
-# Define the DQN neural network
+# Define DQN neural network
 class DQNNetwork(nn.Module):
     def __init__(self, num_inputs, num_actions):
         super(DQNNetwork, self).__init__()
@@ -21,7 +22,6 @@ class DQNNetwork(nn.Module):
         return self.fc(x)
 
 
-
 # Define DQN agent
 class DQNAgent:
     def __init__(self, num_inputs, num_actions, gamma=0.9, epsilon=0.1, replay_buffer_capacity=10000):
@@ -31,7 +31,7 @@ class DQNAgent:
         self.target_net.load_state_dict(self.policy_net.state_dict())
         self.target_net.eval()
 
-        self.optimizer = optim.Adam(self.policy_net.parameters())
+        self.optimizer = optim.AdamW(self.policy_net.parameters())
         self.loss_fn = nn.MSELoss()
 
         self.replay_buffer = deque(maxlen=replay_buffer_capacity)
