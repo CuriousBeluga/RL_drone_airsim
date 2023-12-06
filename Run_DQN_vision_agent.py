@@ -40,14 +40,19 @@ for episode in range(num_episodes):
         image_response = responses[0]
 
         if image_response is not None:
+
+            # get numpy array
+            img1d = np.fromstring(image_response.image_data_uint8, dtype=np.uint8)
+
+            # reshape array to 4 channel image array H X W X 4
+            img_rgb = img1d.reshape(image_response.height, image_response.width, 3)
+
+            # original image is flipped vertically
+            img_rgb = np.flipud(img_rgb)
             # Access image data
             image_data = image_response.image_data_uint8
 
-            # Perform basic image processing (example: convert to grayscale)
-            image_np = np.frombuffer(image_data, dtype=np.uint8).reshape(
-                (100, 100, 10))
-
-            gray_image = cv2.cvtColor(image_np, cv2.COLOR_BGR2GRAY)
+            gray_image = cv2.cvtColor(img_rgb, cv2.COLOR_BGR2GRAY)
 
             # Flatten the image for input to the neural network
             flattened_image = gray_image.flatten()
