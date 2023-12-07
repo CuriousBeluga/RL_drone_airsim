@@ -35,10 +35,12 @@ class DQNAgent:
         self.loss_fn = nn.MSELoss()
 
         self.replay_buffer = deque(maxlen=replay_buffer_capacity)
+        self.replay_capacity = replay_buffer_capacity
         self.gamma = gamma
         self.epsilon = epsilon
 
     def select_action(self, state):
+        # epsilon implementation
         if np.random.rand() < self.epsilon:
             return np.random.randint(self.policy_net.fc[-1].out_features)
         else:
@@ -76,6 +78,10 @@ class DQNAgent:
     def update_target_network(self):
         self.target_net.load_state_dict(self.policy_net.state_dict())
 
+    def reset_replay_buffer(self):
+        # reset the replay buffer to prevent memory issues
+        self.replay_buffer = deque(maxlen=self.replay_capacity)
+
 
 # Connect to the AirSim simulator
 client = airsim.MultirotorClient()
@@ -86,7 +92,9 @@ Experience = namedtuple('Experience', ['state', 'action', 'reward', 'next_state'
 # Set up DQN agent
 num_inputs = 3  # Assuming three state variables (x, y, z)
 num_actions = 6  # 6 actions (up, down, left, right, forward, backwards)
-dqn_agent = DQNAgent(num_inputs, num_actions)
+
+epsilon_user = 0.4
+dqn_agent = DQNAgent(num_inputs, num_actions, epsilon=epsilon_user)
 movement_speed = 3
 
 # Training loop
@@ -105,13 +113,14 @@ for episode in range(num_episodes):
 
     initial_position = initial_pose.position
     # Set the target position (can use switch case to change the position later)
-    target_position = airsim.Vector3r(initial_position.x_val + 35, initial_position.y_val, initial_position.z_val+5)
+    target_position = airsim.Vector3r(initial_position.x_val + 35, initial_position.y_val, initial_position.z_val + 5)
 
-    agent_local_target_pos = airsim.Vector3r(initial_position.x_val + 1, initial_position.y_val, initial_position.z_val)
+    agent_local_target_pos = airsim.Vector3r(initial_position.x_val + 3, initial_position.y_val, initial_position.z_val)
     done = False
     total_reward = 0
     max_iterations = 100
     for i in range(max_iterations):
+        # client.enableApiControl(True)
         action = dqn_agent.select_action(state)
         reward = 0
         print(f'Episode {episode} step: {i}')
@@ -128,8 +137,10 @@ for episode in range(num_episodes):
         elif action == 5:
             agent_local_target_pos.z_val -= movement_speed  # down
 
+        # command agent to move with selected action
         client.moveToPositionAsync(agent_local_target_pos.x_val, agent_local_target_pos.y_val,
                                    agent_local_target_pos.z_val, movement_speed).join()
+        agent_local_target_pos = airsim.Vector3r(0, 0, 0)  # reset local direction command for next iteration
 
         new_pose = client.simGetVehiclePose()
         next_state = [new_pose.position.x_val, new_pose.position.y_val, new_pose.position.z_val]
@@ -201,7 +212,13 @@ for episode in range(num_episodes):
 
         dqn_agent.store_experience(Experience(state, action, reward, next_state, done))
         dqn_agent.update_q_network(batch_size)
-        dqn_agent.update_target_network()
+        # Update the target network periodically
+        if i % 10 == 0:
+            dqn_agent.update_target_network()
+
+        if i % 20 == 0:
+            # reset the replay buffer every ten iterations
+            dqn_agent.reset_replay_buffer()
 
         state = next_state
         total_reward += reward
@@ -215,3 +232,43 @@ for episode in range(num_episodes):
     #     client.landAsync().join()
 
 print("Training complete.")
+# -----------------------------------------------------------------------------------------------------------
+# Agent attempt to navigate to goal
+#
+# client.reset()
+# client.enableApiControl(True)
+# client.takeoffAsync().join()
+# # Set the initial position of the quadcopter
+# initial_pose = client.simGetVehiclePose()
+# state = [initial_pose.position.x_val, initial_pose.position.y_val, initial_pose.position.z_val]
+# initial_position = initial_pose.position
+# # Set the target position (can use switch case to change the position later)
+# target_position = airsim.Vector3r(initial_position.x_val + 35, initial_position.y_val, initial_position.z_val + 5)
+# agent_local_target_pos = airsim.Vector3r(initial_position.x_val + 3, initial_position.y_val, initial_position.z_val)
+# max_steps = 100
+#
+# for e in range(max_steps):
+#     action = dqn_agent.select_action(state)
+#     if action == 0:
+#         agent_local_target_pos.y_val += movement_speed  # right
+#     elif action == 1:
+#         agent_local_target_pos.y_val -= movement_speed  # left
+#     elif action == 2:
+#         agent_local_target_pos.x_val += movement_speed  # forwards
+#     elif action == 3:
+#         agent_local_target_pos.x_val -= movement_speed  # backwards
+#     elif action == 4:
+#         agent_local_target_pos.z_val += movement_speed  # up
+#     elif action == 5:
+#         agent_local_target_pos.z_val -= movement_speed  # down
+#
+#     # command agent to move with selected action
+#     client.moveToPositionAsync(agent_local_target_pos.x_val, agent_local_target_pos.y_val,
+#                                agent_local_target_pos.z_val, movement_speed).join()
+#     agent_local_target_pos = airsim.Vector3r(0, 0, 0)  # reset local direction command for next iteration
+#     new_position = client.simGetVehiclePose()
+#     state = [new_position.position.x_val, new_position.position.y_val, new_position.position.z_val]
+#
+#     if new_position.position.distance_to(target_position) <= 2:
+#         print(f"The eagle has at step {e}!")
+#         break
