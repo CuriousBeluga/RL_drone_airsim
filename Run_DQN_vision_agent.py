@@ -20,7 +20,7 @@ dqn_agent = DQNAgent(num_inputs, num_actions)
 movement_speed = 3
 
 # Training loop
-num_episodes = 10
+num_episodes = 20
 epsilon_decay = 0.995
 batch_size = 64
 
@@ -34,23 +34,25 @@ for episode in range(num_episodes):
     client.enableApiControl(True)
     client.takeoffAsync().join()
 
+    agent_local_target_pos = airsim.Vector3r(initial_position.x_val + 3, initial_position.y_val, initial_position.z_val)
     # Capture and process images
     for _ in range(100):  # Example: Process images for 100 iterations
-        responses = client.simGetImages([airsim.ImageRequest("front_center", airsim.ImageType.Scene)])
-        image_response = responses[0]
+        # responses = client.simGetImages([airsim.ImageRequest("front_center", airsim.ImageType.Scene)])
+        # image_response = responses[0]
 
-        if image_response is not None:
+        responses = client.simGetImages([
+            airsim.ImageRequest("0", airsim.ImageType.DepthVis),  # depth visualization image
+            airsim.ImageRequest("1", airsim.ImageType.DepthPerspective, True),  # depth in perspective projection
+            airsim.ImageRequest("1", airsim.ImageType.Scene),  # scene vision image in png format
+            airsim.ImageRequest("1", airsim.ImageType.Scene, False,
+                                False)])  # scene vision image in uncompressed RGB array
+        response = responses[3]
+        img1d = np.frombuffer(response.image_data_uint8, dtype=np.uint8)  # get numpy array
+        img_rgb = img1d.reshape(response.height, response.width,3)  # reshape array to 3 channel image array H X W X 3
 
-            # get numpy array
-            img1d = np.fromstring(image_response.image_data_uint8, dtype=np.uint8)
-
-            # reshape array to 4 channel image array H X W X 4
-            img_rgb = img1d.reshape(image_response.height, image_response.width, 3)
-
-            # original image is flipped vertically
-            img_rgb = np.flipud(img_rgb)
-            # Access image data
-            image_data = image_response.image_data_uint8
+        if response is not None:
+            img1d = np.fromstring(response.image_data_uint8, dtype=np.uint8)  # get numpy array
+            img_rgb = img1d.reshape(response.height, response.width)  # reshape array to 3 channel image array H X W X 3
 
             gray_image = cv2.cvtColor(img_rgb, cv2.COLOR_BGR2GRAY)
 
@@ -67,11 +69,37 @@ for episode in range(num_episodes):
 
             # Example: Map obstacle presence and target direction to actions (adjust as needed)
             if obstacle_present:
-                action = 1  # Move backward
+                action = 1  # Move forward
             else:
                 # Move forward or turn towards the target based on direction
                 forward_action = 4 if np.dot(normalized_direction, np.array([1, 0, 0])) > 0.5 else 0
                 action = forward_action
+            #
+            # action = dqn_agent.select_action(state)
+            # reward = 0
+            #
+            # if action == 0:
+            #     agent_local_target_pos.y_val += movement_speed  # right
+            # elif action == 1:
+            #     agent_local_target_pos.y_val -= movement_speed  # left
+            # elif action == 2:
+            #     agent_local_target_pos.x_val += movement_speed  # forwards
+            # elif action == 3:
+            #     agent_local_target_pos.x_val -= movement_speed  # backwards
+            # elif action == 4:
+            #     agent_local_target_pos.z_val += movement_speed  # up
+            # elif action == 5:
+            #     agent_local_target_pos.z_val -= movement_speed  # down
+            #
+            # # command agent to move with selected action
+            # client.moveToPositionAsync(agent_local_target_pos.x_val, agent_local_target_pos.y_val,
+            #                            agent_local_target_pos.z_val, movement_speed).join()
+            # agent_local_target_pos = airsim.Vector3r(0, 0, 0)  # reset local direction command for next iteration
+            #
+            # new_pose = client.simGetVehiclePose()
+            # next_state = [new_pose.position.x_val, new_pose.position.y_val, new_pose.position.z_val]
+            #
+
 
             # Store the experience in the replay buffer
             state = flattened_image

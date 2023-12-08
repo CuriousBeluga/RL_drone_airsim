@@ -17,7 +17,7 @@ client.takeoffAsync().join()
 initial_pose = client.simGetVehiclePose()
 initial_position = initial_pose.position
 # Set the target position (can use switch case to change the position)
-target_position = airsim.Vector3r(initial_position.x_val, initial_position.y_val-35, initial_position.z_val)
+target_position = airsim.Vector3r(initial_position.x_val+35, initial_position.y_val, initial_position.z_val)
 
 
 movement_speed = 3
