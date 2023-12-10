@@ -342,13 +342,14 @@ def agent_run(checkpoint_path, csv_file='', run_iterations = 10):
         initial_position = initial_pose.position
         # Set the target position (can use switch case to change the position later)
         target_position = airsim.Vector3r(initial_position.x_val + 29, initial_position.y_val, initial_position.z_val)
-
         current_pose = client.simGetVehiclePose()
+        local_state = [current_pose.position.x_val, current_pose.position.y_val, current_pose.position.z_val]
         curr_state = current_pose.position
+
         agent_local_target_pos = airsim.Vector3r(curr_state.x_val+3, curr_state.y_val, curr_state.z_val)
 
         for i in range(max_steps):
-            action = dqn_agent_run.select_action(agent_local_target_pos)
+            action = dqn_agent_run.select_action(local_state)
             print(f'iteration {e} step {i}')
             if action == 0:
                 agent_local_target_pos.y_val += displacement  # right
@@ -395,25 +396,35 @@ def agent_run(checkpoint_path, csv_file='', run_iterations = 10):
 
 # train agent for obstacle course 1
 # course_1_episodes = 100  # number of episodes in course 1
-# checkpoint_path = 'dqn_checkpoint_1obstacle.pth'
-# csv_file = 'dqn_1obstacle_rewards'
+# checkpoint_path = 'dqn_checkpoint_no_obstacle.pth'
+# csv_file = 'dqn_no_obstacle_rewards'
 # retrain with new hyperparameters
 # train_agent_obstacle(course_1_episodes, checkpoint_path, csv_file)
 
 # train agent for obstacle course 2
-# course_2_episodes = 100  # number of episodes in course 1
-# checkpoint_path = 'dqn_checkpoint_1obstacle.pth'
-# csv_file = 'dqn_1obstacle_rewards'
+course_2_episodes = 100  # number of episodes in course 1
+checkpoint_path = 'dqn_checkpoint_1obstacle.pth'
+csv_file = 'dqn_1obstacle_rewards'
 # retrain with new hyperparameters
-# train_agent_obstacle(course_2_episodes, checkpoint_path, csv_file)
+train_agent_obstacle(course_2_episodes, checkpoint_path, csv_file)
 
-course_3_episodes = 100
-checkpoint_path = 'dqn_checkpoint_multi_obstacle.pth'
-csv_file = 'dqn_multi_obstacle_rewards'
-train_agent_obstacle(course_3_episodes, checkpoint_path, csv_file)
+# course_3_episodes = 100
+# checkpoint_path = 'dqn_checkpoint_multi_obstacle.pth'
+# csv_file = 'dqn_multi_obstacle_rewards'
+# train_agent_obstacle(course_3_episodes, checkpoint_path, csv_file)
 
 #
 #
+# # run 2nd course
+# checkpoint_path = 'dqn_checkpoint_1obstacle.pth'
+# file_for_csv = 'dqn_1obstacle_rewards'
+# steps = 10
+# collide_data, success_data = agent_run(checkpoint_path,csv_file=file_for_csv, run_iterations= steps)
+#
+# print(f'Agent had {collide_data} collisions and {success_data} completions over {steps} steps')
+#
+
+
 # # run 3rd course
 # checkpoint_path = 'dqn_checkpoint_multi_obstacle.pth'
 # file_for_csv = 'dqn_multi_obstacle_rewards'
