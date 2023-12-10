@@ -114,10 +114,10 @@ class DQNAgent:
     def save_episode_reward(self, episode, reward, test_time):
         # Append the reward for the current episode to the CSV file
         with open(self.csv_filename, 'a', newline='') as csvfile:
-            fieldnames = ['Episode', 'Reward','Time']
+            fieldnames = ['Episode', 'Reward', 'Time']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
-            writer.writerow({'Episode': episode, 'Reward': reward,'Time': test_time})
+            writer.writerow({'Episode': episode, 'Reward': reward, 'Time': test_time})
 
 
 # Set the timeout in seconds
@@ -134,11 +134,10 @@ def set_timeout_flag():
     timeout_flag = True
 
 
-def train_agent_obstacle_1(num_episodes,checkpoint_path,csv_file):
+def train_agent_obstacle(num_episodes, checkpoint_path, csv_file):
     # Connect to the AirSim simulator
     client = airsim.MultirotorClient()
     client.confirmConnection()
-
 
     # Define experience tuple for replay buffer
     Experience = namedtuple('Experience', ['state', 'action', 'reward', 'next_state', 'done'])
@@ -168,11 +167,10 @@ def train_agent_obstacle_1(num_episodes,checkpoint_path,csv_file):
 
         # Set the initial position of the quadcopter
         initial_pose = client.simGetVehiclePose()
-        state = [initial_pose.position.x_val, initial_pose.position.y_val, initial_pose.position.z_val]
 
         initial_position = initial_pose.position
         # Set the target position (can use switch case to change the position later)
-        target_position = airsim.Vector3r(initial_position.x_val + 35, initial_position.y_val,
+        target_position = airsim.Vector3r(initial_position.x_val + 28, initial_position.y_val,
                                           initial_position.z_val)
 
         # agent_local_target_pos = airsim.Vector3r(initial_position.x_val + 3, initial_position.y_val,
@@ -193,9 +191,11 @@ def train_agent_obstacle_1(num_episodes,checkpoint_path,csv_file):
             #     action = dqn_agent.select_action(state)
             current_pose = client.simGetVehiclePose()
             curr_state = current_pose.position
-            agent_local_target_pos = airsim.Vector3r(curr_state.x_val, curr_state.y_val,curr_state.z_val)
+            local_state = [current_pose.position.x_val, current_pose.position.y_val, current_pose.position.z_val]
 
-            action = dqn_agent.select_action(state)
+            agent_local_target_pos = airsim.Vector3r(curr_state.x_val, curr_state.y_val, curr_state.z_val)
+
+            action = dqn_agent.select_action(local_state)
             print("action calculated")
             reward = 0
             print(f'Episode {episode + 1} step: {i}')
@@ -211,93 +211,43 @@ def train_agent_obstacle_1(num_episodes,checkpoint_path,csv_file):
                 agent_local_target_pos.z_val += displacement  # up
             elif action == 5:
                 agent_local_target_pos.z_val -= displacement  # down
-            agent_local_target_pos.x_val += displacement  # forwards
 
-            client.moveToPositionAsync(agent_local_target_pos.x_val, agent_local_target_pos.y_val, agent_local_target_pos.z_val, movement_speed).join()
+            if current_pose.position.distance_to(target_position) > 9:
+                agent_local_target_pos.x_val += displacement  # forwards
+
+            client.moveToPositionAsync(agent_local_target_pos.x_val, agent_local_target_pos.y_val,
+                                       agent_local_target_pos.z_val, movement_speed).join()
 
             agent_local_target_pos.y_val = 0
 
-            # # Set the desired command rate (commands per second)
-            # command_rate = 2.0  # Adjust as needed
-            #
-            # # Calculate the time interval between commands
-            # command_interval = 1.0 / command_rate
-            # try:
-            #     while True:
-            #         client.armDisarm(True)
-            #         client.enableApiControl(True)
-            #         print("loop entered")
-            #         # command agent to move with selected action
-            #         client.moveToPositionAsync(curr_state.x_val, curr_state.y_val,
-            #                                    curr_state.z_val, movement_speed).join()
-            #         # Wait for the next command interval
-            #         time.sleep(command_interval)
-            #         # Get the updated position after sending the command
-            #         updated_position = client.simGetVehiclePose().position
-            #
-            #         # Calculate the distance moved in the x-axis
-            #         distance_moved = updated_position.x_val - initial_position.x_val
-            #
-            #         # Check if the desired distance is reached
-            #         print("command loop")
-            #         if distance_moved >= 0.1:
-            #             break
-            #
-            # except KeyboardInterrupt:
-            #     pass
-            # finally:
-            #     pass
-            #     # Ensure the drone is safely landed and disarmed
-            #     # client.armDisarm(False)
-            #     # client.landAsync().join()
-            #
-            # print("command issued")
             new_pose = client.simGetVehiclePose()
             next_state = [new_pose.position.x_val, new_pose.position.y_val, new_pose.position.z_val]
-
-            # reward section based on distance tiers
-            # if 35 < new_pose.position.distance_to(target_position) <= 40:
-            #     reward = -35
-            # elif 30 < new_pose.position.distance_to(target_position) <= 35:
-            #     reward = -30
-            # elif 25 < new_pose.position.distance_to(target_position) <= 30:
-            #     reward = -25
-            # elif 20 < new_pose.position.distance_to(target_position) <= 25:
-            #     reward = -20
-            # elif 15 < new_pose.position.distance_to(target_position) <= 20:
-            #     reward = -15
-            # if new_pose.position.distance_to(target_position) > 10:
-            #     reward = -15
-            # elif 5 < new_pose.position.distance_to(target_position) <= 10:
-            #     reward = -10
-            # elif 2 < new_pose.position.distance_to(target_position) <= 5:
-            #     reward = -2
 
             if new_pose.position.distance_to(target_position) > 2:
                 reward = -new_pose.position.distance_to(target_position)
                 print(reward)
             elif new_pose.position.distance_to(target_position) <= 2:
-                reward = max_iterations*35
-            if new_pose.position == target_position:
+                reward = max_iterations * 35
+            if new_pose.position.distance_to(target_position) <= 5:
                 reward = 1000
                 total_reward += reward
                 print(f"Episode {episode + 1}, Total Reward: {total_reward}")
                 print("The eagle has landed!")
                 done = True
-                dqn_agent.store_experience(Experience(state, action, reward, next_state, done))
+                dqn_agent.store_experience(Experience(local_state, action, reward, next_state, done))
                 dqn_agent.update_q_network(batch_size)
                 dqn_agent.update_target_network()
                 # dqn_agent.save_episode_reward(episode, total_reward)
                 break
             # if agent tries to exceed bounded training area, immediately terminate episode
             if new_pose.position.distance_to(target_position) > 40 or new_pose.position.z_val > 6:
-                reward = -max_iterations*35
+                reward = -max_iterations * 35
                 total_reward += reward
                 print(f"Episode {episode + 1}, Total Reward: {total_reward}")
                 print("The eagle has failed!")
                 done = True
                 print(f'{new_pose.position.distance_to(target_position)} units from target')
-                dqn_agent.store_experience(Experience(state, action, reward, next_state, done))
+                dqn_agent.store_experience(Experience(local_state, action, reward, next_state, done))
                 dqn_agent.update_q_network(batch_size)
                 dqn_agent.update_target_network()
                 # dqn_agent.save_episode_reward(episode, total_reward)
@@ -316,9 +266,9 @@ def train_agent_obstacle_1(num_episodes,checkpoint_path,csv_file):
                 print(f"Object ID: {collision_info.object_id}")
                 print(f"Object name: {collision_info.object_name}")
                 done = True
-                reward = -max_iterations*35
+                reward = -max_iterations * 35
                 total_reward += reward
-                dqn_agent.store_experience(Experience(state, action, reward, next_state, done))
+                dqn_agent.store_experience(Experience(local_state, action, reward, next_state, done))
                 dqn_agent.update_q_network(batch_size)
                 dqn_agent.update_target_network()
                 break
@@ -328,7 +278,7 @@ def train_agent_obstacle_1(num_episodes,checkpoint_path,csv_file):
 
             # done = True if collision_info.has_collided else False
 
-            dqn_agent.store_experience(Experience(state, action, reward, next_state, done))
+            dqn_agent.store_experience(Experience(local_state, action, reward, next_state, done))
             dqn_agent.update_q_network(batch_size)
             # Update the target network periodically
             if i % 10 == 0:
@@ -347,11 +297,10 @@ def train_agent_obstacle_1(num_episodes,checkpoint_path,csv_file):
         print(f"Episode {episode + 1}, Total Reward: {total_reward}")
 
         # save the learned weights and biases to a file
-        torch.save((dqn_agent.policy_net.state_dict(), dqn_agent.target_net.state_dict()),
-                   'dqn_checkpoint_1obstacle.pth')
+        torch.save((dqn_agent.policy_net.state_dict(), dqn_agent.target_net.state_dict()), checkpoint_path)
         # save reward for the episode
         now = datetime.datetime.now()
-        dqn_agent.save_episode_reward(episode, total_reward,now)
+        dqn_agent.save_episode_reward(episode, total_reward, now)
 
         # if done:
         #     # if episode does not terminate then land
@@ -362,69 +311,114 @@ def train_agent_obstacle_1(num_episodes,checkpoint_path,csv_file):
 
 
 # -----------------------------------------------------------------------------------------------------------
-def agent_run():
-    # Agent attempt to navigate to goal
-    client = airsim.MultirotorClient()
-    client.confirmConnection()
-    client.reset()
-    client.enableApiControl(True)
-    client.takeoffAsync().join()
-    # Set the initial position of the quadcopter
-    initial_pose = client.simGetVehiclePose()
-    state = [initial_pose.position.x_val, initial_pose.position.y_val, initial_pose.position.z_val]
-    initial_position = initial_pose.position
-    # Set the target position (can use switch case to change the position later)
-    target_position = airsim.Vector3r(initial_position.x_val + 35, initial_position.y_val, initial_position.z_val + 5)
-    agent_local_target_pos = airsim.Vector3r(initial_position.x_val + 3, initial_position.y_val, initial_position.z_val)
+# need to fix the local state problem
+def agent_run(checkpoint_path, csv_file='', run_iterations = 10):
+
 
     # Set up DQN agent
-    checkpoint_path = 'dqn_checkpoint_1obstacle.pth'
-    csv_file = 'dqn_1obstacle_rewards'
+    # csv_file = ''
     num_inputs = 3  # Assuming three state variables (x, y, z)
     num_actions = 6  # 6 actions (up, down, left, right, forward, backwards)
-    epsilon_user = 0
-    dqn_agent = DQNAgent(num_inputs, num_actions, checkpoint_path, csv_file, epsilon=epsilon_user)
-
+    epsilon_user = 0.4
+    dqn_agent_run = DQNAgent(num_inputs, num_actions, checkpoint_path, csv_file, epsilon=epsilon_user)
     # simulation
-    movement_speed = 1
+    movement_speed = 2
+    displacement = 1
     max_steps = 100
+    success_count = 0
+    collision_count = 0
 
-    for e in range(max_steps):
-        action = dqn_agent.select_action(state)
-        if action == 0:
-            agent_local_target_pos.y_val += movement_speed  # right
-        elif action == 1:
-            agent_local_target_pos.y_val -= movement_speed  # left
-        elif action == 2:
-            agent_local_target_pos.x_val += movement_speed  # forwards
-        elif action == 3:
-            agent_local_target_pos.x_val -= movement_speed  # backwards
-        elif action == 4:
-            agent_local_target_pos.z_val += movement_speed  # up
-        elif action == 5:
-            agent_local_target_pos.z_val -= movement_speed  # down
 
-        # command agent to move with selected action
-        client.moveToPositionAsync(agent_local_target_pos.x_val, agent_local_target_pos.y_val,
-                                   agent_local_target_pos.z_val, movement_speed).join()
+    for e in range(run_iterations):
+        # Agent attempt to navigate to goal
+        client = airsim.MultirotorClient()
+        client.confirmConnection()
+        client.reset()
+        client.enableApiControl(True)
+        client.takeoffAsync().join()
+        # Set the initial position of the quadcopter
+        initial_pose = client.simGetVehiclePose()
+        state = [initial_pose.position.x_val, initial_pose.position.y_val, initial_pose.position.z_val]
+        initial_position = initial_pose.position
+        # Set the target position (can use switch case to change the position later)
+        target_position = airsim.Vector3r(initial_position.x_val + 29, initial_position.y_val, initial_position.z_val)
 
-        new_position = client.simGetVehiclePose()
-        state = [new_position.position.x_val, new_position.position.y_val, new_position.position.z_val]
+        current_pose = client.simGetVehiclePose()
+        curr_state = current_pose.position
+        agent_local_target_pos = airsim.Vector3r(curr_state.x_val+3, curr_state.y_val, curr_state.z_val)
 
-        if new_position.position.distance_to(target_position) <= 2:
-            print(f"The eagle has landed at step {e}!")
-            break
+        for i in range(max_steps):
+            action = dqn_agent_run.select_action(agent_local_target_pos)
+            print(f'iteration {e} step {i}')
+            if action == 0:
+                agent_local_target_pos.y_val += displacement  # right
+            elif action == 1:
+                agent_local_target_pos.y_val -= displacement  # left
+            elif action == 2:
+                agent_local_target_pos.x_val += displacement  # forwards
+            elif action == 3:
+                agent_local_target_pos.x_val -= displacement  # backwards
+            elif action == 4:
+                agent_local_target_pos.z_val += displacement  # up
+            elif action == 5:
+                agent_local_target_pos.z_val -= displacement  # down
+
+            if current_pose.position.distance_to(target_position) > 9:
+                agent_local_target_pos.x_val += displacement  # forwards
+
+            client.moveToPositionAsync(agent_local_target_pos.x_val, agent_local_target_pos.y_val,
+                                       agent_local_target_pos.z_val,
+                                       movement_speed).join()
+
+            agent_local_target_pos.y_val = 0
+            # Collision handling
+            collision_info = client.simGetCollisionInfo()
+
+            # Detect if collision has happened, print message statement
+            if collision_info.has_collided:
+                print("Collision detected")
+                collision_count += 1
+                break
+
+            new_position = client.simGetVehiclePose()
+            state = [new_position.position.x_val, new_position.position.y_val, new_position.position.z_val]
+
+            if new_position.position.distance_to(target_position) <= 5:
+                print(f"The eagle has landed at step {i}!")
+                success_count += 1
+                break
+    return collision_count, success_count
 
 
 # --------------------------------------------------------------------------------------------------------------------------
 # if __name__ == "__main__":
+
 # train agent for obstacle course 1
-course_1_episodes = 100  # number of episodes in course 1
-checkpoint_path = 'dqn_checkpoint_1obstacle.pth'
-csv_file = 'dqn_1obstacle_rewards'
-train_agent_obstacle_1(course_1_episodes, checkpoint_path, csv_file)
+# course_1_episodes = 100  # number of episodes in course 1
+# checkpoint_path = 'dqn_checkpoint_1obstacle.pth'
+# csv_file = 'dqn_1obstacle_rewards'
+# retrain with new hyperparameters
+# train_agent_obstacle(course_1_episodes, checkpoint_path, csv_file)
 
+# train agent for obstacle course 2
+# course_2_episodes = 100  # number of episodes in course 1
+# checkpoint_path = 'dqn_checkpoint_1obstacle.pth'
+# csv_file = 'dqn_1obstacle_rewards'
+# retrain with new hyperparameters
+# train_agent_obstacle(course_2_episodes, checkpoint_path, csv_file)
 
+course_3_episodes = 100
+checkpoint_path = 'dqn_checkpoint_multi_obstacle.pth'
+csv_file = 'dqn_multi_obstacle_rewards'
+train_agent_obstacle(course_3_episodes, checkpoint_path, csv_file)
 
-
-
+#
+#
+# # run 3rd course
+# checkpoint_path = 'dqn_checkpoint_multi_obstacle.pth'
+# file_for_csv = 'dqn_multi_obstacle_rewards'
+# steps = 10
+# collide_data, success_data = agent_run(checkpoint_path,csv_file=file_for_csv, run_iterations= steps)
+#
+# print(f'Agent had {collide_data} collisions and {success_data} completions over {steps} steps')
+#
